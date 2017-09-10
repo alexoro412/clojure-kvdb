@@ -6,10 +6,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Catch errors in kv_parse
-;; Metadata for assigning types to db entries
 ;; Hashmap functions https://redis.io/commands#hash
 ;; Set functions https://redis.io/commands#set
 ;; Metadata for naming databases
+;; Do values have to be returned with every command?
 
 ;; LATER TODO
 ;; Add radix tree?
@@ -31,11 +31,15 @@
   (atom {}))
 
 (defn kv-whole-map
-  "Returns a hashmap snapshot of the entire database"
+  "Returns a hashmap snapshot of the entire database
+  {k [type value] ...}"
   [db]
   (into {}
     (map
-    #((comp vec list) (first %) [(first (second %)) (deref (second (second %)))])
+    #((comp vec list)
+      (first %) ; key
+      [(first (second %)) ; type
+        (deref (second (second %)))]) ; value
     @db)))
 
 (defn kv-value
@@ -50,7 +54,57 @@
 ;; KV-* FUNCTIONS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn kv-hset
+  "Adds a key-value pairs to a hashmap
+  Creates the map if it doesn't already exists.
+  Returns (:ok) or (:error :type-mismatch)"
+  [db k & kvs]
+  (if (contains? @db k)
+    (let [[type value-atom] (get @db k)]
+      (if (= type :hash)
+        (do (swap! value-atom #(apply assoc % kvs))
+          (list :ok))
+        (list :error :type-mismatch)))
+    (do (swap! db assoc k [:hash (atom (apply assoc {} kvs))])
+        (list :ok))))
+
+(defn kv-hget
+  "Get value for hashmap k, field hk
+  Returns (:ok value), (:error :type-mismatch), (:error :nil)"
+  [db k hk]
+  (if (contains? @db k)
+    (let [[type value-atom] (get @db k)]
+      (if (= type :hash)
+        (if-let [value (get @value-atom hk)]
+          (list :ok value)
+          (list :error :nil))
+        (list :error :type-mismatch)))
+    (list :error :nil)))
+
+(defn kv-hdel
+  "Delete keys from a hashmap
+  returns (:ok num) where num is the number of keys deleted
+  or (:error :type-mismatch).
+  If the map doesn't exist, returns (:ok 0)"
+  [db k & hks]
+  (if (contains? @db k)
+    (let [[type value-atom] (get @db k)]
+      (if (= type :hash)
+        (list :ok (reduce
+          #(+ %1 (if (contains? @value-atom %2)
+                      (do (swap! value-atom dissoc %2)
+                          1)
+                      0))
+          0
+          hks))
+        (list :error :type-mismatch)))
+    (list :ok 0)))
+
 (defn kv-assoc
+  "Returns one of the following:
+    (:new new-value)
+    (:updated new-value)
+    (:error :type-mismatch)"
   [db k v]
   (if (contains? @db k)
     (let [[type value-atom] (get @db k)]
@@ -72,12 +126,14 @@
     ks)))
 
 (defn kv-get
-  "Returns (:ok value)"
+  "Returns (:ok value), (:error :type-mismatch), or (:error :nil)"
   [db k]
-  (let [[type value-atom] (get @db k)]
-    (if (= type :raw)
-      (list :ok @value-atom)
-      (list :error :type-mismatch))))
+  (if (contains? @db k)
+    (let [[type value-atom] (get @db k)]
+      (if (= type :raw)
+        (list :ok @value-atom)
+        (list :error :type-mismatch)))
+    (list :error :nil)))
 
 (defn kv-exists
   "Returns (:ok num) where num is the number of keys that exist"
@@ -86,24 +142,41 @@
         0
         ks)))
 
+(defn kv-run
+  "Runs commands given as list of strings.
+  See kv-parse"
+  [db [function & operands]]
+  (case function
+      "ASYNC" (do (future (kv-run db operands)) (list :ok :async))
+      "SET" (apply kv-assoc db operands) ;; TODO turn into dispatch macro?
+      "GET" (apply kv-get db operands)
+      "DEL" (apply kv-dissoc db operands)
+      "EXISTS" (apply kv-exists db operands)
+      "HDEL" (apply kv-hdel db operands)
+      "HGET" (apply kv-hget db operands)
+      "HSET" (apply kv-hset db operands)
+      (list :nocmd db)))
+
+(defmacro repl
+  [db & forms])
+
 (defn kv-parse
-  "Parses and executes a GET, SET, DEL, or EXISTS command
-  returns same a calling appropriate kv-* function,
-  or (:nocmd db) if the command is not found.
+  "Parses and executes a command
+  return values:
+    the same as calling appropriate kv-* function,
+    (:nocmd db) if the command is not found,
+    (:ok :async) for ASYNC commands
 
   kv-* functions:
   - kv-assoc
   - kv-dissoc
   - kv-get
-  - kv-exists "
+  - kv-exists
+  - kv-hset
+  - kv-hget
+  - kv-hdel "
   [db string]
-  (let [[function & operands] (clojure.string/split string #" ")]
-    (case function
-        "SET" (apply kv-assoc db operands)
-        "GET" (apply kv-get db operands)
-        "DEL" (apply kv-dissoc db operands)
-        "EXISTS" (apply kv-exists db operands)
-        (list :nocmd db))))
+  (kv-run db (clojure.string/split string #" ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TESTING
