@@ -1,0 +1,11 @@
+GET key
+=> String response
+
+SET key value [EX seconds] [PX ms] [NX|XX]
+=> OK
+
+DEL key [key ...]
+=> number of keys deleted
+
+EXISTS key [key ...]
+=> number of keys that exist
