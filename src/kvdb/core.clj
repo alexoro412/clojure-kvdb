@@ -33,7 +33,10 @@
 (defn kv-whole-map
   "Returns a hashmap snapshot of the entire database"
   [db]
-  (into {} (map #((comp vec list) (first %) (deref (second %))) @db)))
+  (into {}
+    (map
+    #((comp vec list) (first %) [(first (second %)) (deref (second (second %)))])
+    @db)))
 
 (defn kv-value
   [db k]
@@ -48,12 +51,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn kv-assoc
-  "Returns (:updated new-val) or (:new new-val)"
   [db k v]
   (if (contains? @db k)
-    (let [value-atom (get @db k)]
-      (list :updated (swap! value-atom (fn [_] v))))
-    (do (swap! db assoc k (atom v))
+    (let [[type value-atom] (get @db k)]
+      (if (= type :raw)
+        (list :updated (swap! value-atom (fn [_] v)))
+        (list :error :type-mismatch)))
+    (do (swap! db assoc k [:raw (atom v)])
         (list :new v))))
 
 (defn kv-dissoc
@@ -70,7 +74,10 @@
 (defn kv-get
   "Returns (:ok value)"
   [db k]
-  (list :ok (get @db k)))
+  (let [[type value-atom] (get @db k)]
+    (if (= type :raw)
+      (list :ok @value-atom)
+      (list :error :type-mismatch))))
 
 (defn kv-exists
   "Returns (:ok num) where num is the number of keys that exist"
