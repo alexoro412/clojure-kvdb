@@ -5,11 +5,10 @@
 ;; TODO
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Catch errors in kv_parse
-;; Hashmap functions https://redis.io/commands#hash
-;; Set functions https://redis.io/commands#set
-;; Metadata for naming databases
+;; Catch errors in kv-parse
 ;; Do values have to be returned with every command?
+;; Multimethod to validate syntax
+;; ;; Dispatch on first argument!
 
 ;; LATER TODO
 ;; Add radix tree?
@@ -32,7 +31,7 @@
 
 (defn kv-whole-map
   "Returns a hashmap snapshot of the entire database
-  {k [type value] ...}"
+  {k [type value]}"
   [db]
   (into {}
     (map
@@ -179,6 +178,50 @@
   (kv-run db (clojure.string/split string #" ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; SYNTAX
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmulti validate
+  "Validates syntax"
+  (fn [string] (first (clojure.string/split string #" "))))
+
+(defmethod validate "ASYNC"
+  [string]
+  (->> string (#(clojure.string/split % #" ")) rest (clojure.string/join " ") validate))
+
+(defmacro check-arity
+  [command argc]
+  (let [string (gensym)]
+    `(defmethod validate ~command
+      [~string]
+      (= (- ~argc 1) (->> ~string (#(clojure.string/split % #" ")) count)))))
+
+(defmacro check-min-arity
+  [command argc]
+  (let [string (gensym)]
+    `(defmethod validate ~command
+      [~string]
+      (< ~argc (->> ~string (#(clojure.string/split % #" ")) count)))))
+
+(defmacro check-pairs
+  [command argc]
+  (let [string (gensym)]
+    `(defmethod validate ~command
+      [~string]
+      (< ~argc (->> ~string (#(clojure.string/split % #" ")) count)))))
+
+(check-arity "GET" 1)
+(check-arity "SET" 2)
+(check-arity "HGET" 2)
+(check-min-arity "DEL" 1)
+(check-min-arity "HDEL" 2)
+(check-min-arity "EXISTS" 1)
+
+(defmethod validate "HSET"
+  [string]
+  (let [argc (->> string (#(clojure.string/split % #" ")) count)]
+    (and (> argc 2) (= (mod argc 2) 0))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TESTING
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -188,7 +231,7 @@
   [db]
   (kv-parse db "SET x 4")
   (println "x SET to 4")
-  (future (swap! db (fn [x] (Thread/sleep 10000) (println "Delay ended") (assoc x "y" (atom "4")))))
+  (future (swap! db (fn [x] (Thread/sleep 10000) (println "Delay ended") (assoc x "y" [:raw (atom "4")]))))
   (println "Delay started")
   (kv-parse db "SET x 5")
   (println (kv-parse db "GET x")))
