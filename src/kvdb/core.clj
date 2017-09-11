@@ -159,6 +159,8 @@
 (defmacro repl
   [db & forms])
 
+(declare validate)
+
 (defn kv-parse
   "Parses and executes a command
   return values:
@@ -175,7 +177,9 @@
   - kv-hget
   - kv-hdel "
   [db string]
-  (kv-run db (clojure.string/split string #" ")))
+  (if (validate string)
+    (kv-run db (clojure.string/split string #" "))
+    (list :error :syntax)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SYNTAX
@@ -193,16 +197,9 @@
   (let [string (gensym)]
     `(defmethod validate ~command
       [~string]
-      (= (- ~argc 1) (->> ~string (#(clojure.string/split % #" ")) count)))))
+      (= (+ ~argc 1) (->> ~string (#(clojure.string/split % #" ")) count)))))
 
 (defmacro check-min-arity
-  [command argc]
-  (let [string (gensym)]
-    `(defmethod validate ~command
-      [~string]
-      (< ~argc (->> ~string (#(clojure.string/split % #" ")) count)))))
-
-(defmacro check-pairs
   [command argc]
   (let [string (gensym)]
     `(defmethod validate ~command
