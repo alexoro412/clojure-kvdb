@@ -1,5 +1,12 @@
 (ns kvdb.core
-  (:gen-class))
+  (:gen-class)
+  (:require
+    [manifold.deferred :as d]
+    [manifold.stream :as s]
+    [clojure.edn :as edn]
+    [aleph.tcp :as tcp]
+    [gloss.core :as gloss]
+    [gloss.io :as io]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TODO
@@ -217,6 +224,66 @@
   [string]
   (let [argc (->> string (#(clojure.string/split % #" ")) count)]
     (and (> argc 2) (= (mod argc 2) 0))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; TCP
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def protocol
+  (gloss/compile-frame
+    (gloss/finite-frame :uint32
+      (gloss/string :utf-8))
+    pr-str
+    edn/read-string))
+
+(defn wrap-duplex-stream
+  [protocol s]
+  (let [out (s/stream)]
+    (s/connect ;; send all data from first to second
+      (s/map #(io/encode protocol %) out) ;; map encode over a stream
+    s)
+    (s/splice ;; all messages from put! go to out
+      out ;; all messages from take! come from source
+      (io/decode-stream s protocol))))
+
+;; creates a tcp client, and then wraps the protocol over it
+(defn client
+  [host port] ;; d/chain basically ->
+  (d/chain (tcp/client {:host host :port port})
+    #(wrap-duplex-stream protocol %)))
+
+(defn start-server
+  [handler port]
+  (tcp/start-server
+    (fn [s info] ;; info = port number?
+      (handler (wrap-duplex-stream protocol s) info))
+      {:port port}))
+
+(def main-db (empty-db))
+
+(defn kv-parse-handler
+  [s info]
+  (s/connect
+    (s/map (partial kv-parse main-db) s)
+   s))
+
+(def server
+  (start-server
+    kv-parse-handler
+    6079))
+
+(def test-client @(client "localhost" 6079))
+
+(defn run-cmd
+  [client cmd]
+  (do @(s/put! client cmd)
+      @(s/take! client)))
+
+(defmacro >>
+  [& form]
+  (let [string (clojure.string/trim (reduce
+    #(clojure.string/join " " [%1 (str %2)]) "" form))]
+    `(run-cmd test-client ~string)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TESTING
