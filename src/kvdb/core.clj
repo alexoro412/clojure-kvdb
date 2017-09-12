@@ -281,9 +281,7 @@
 
 (defmacro >>
   [& form]
-  (let [string (clojure.string/trim (reduce
-    #(clojure.string/join " " [%1 (str %2)]) "" form))]
-    `(run-cmd test-client ~string)))
+  `(run-cmd test-client ~(apply pr-str form)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TESTING
