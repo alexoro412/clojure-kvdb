@@ -6,7 +6,8 @@
     [clojure.edn :as edn]
     [aleph.tcp :as tcp]
     [gloss.core :as gloss]
-    [gloss.io :as io]))
+    [gloss.io :as io]
+    [aleph.netty]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TODO
@@ -152,7 +153,7 @@
   "Runs commands given as list of strings.
   See kv-parse"
   [db [function & operands]]
-  (case function
+  (case (clojure.string/upper-case function)
       "ASYNC" (do (future (kv-run db operands)) (list :ok :async))
       "SET" (apply kv-assoc db operands) ;; TODO turn into dispatch macro?
       "GET" (apply kv-get db operands)
@@ -161,7 +162,7 @@
       "HDEL" (apply kv-hdel db operands)
       "HGET" (apply kv-hget db operands)
       "HSET" (apply kv-hset db operands)
-      (list :nocmd db)))
+      (list :error :nocmd)))
 
 (defmacro repl
   [db & forms])
@@ -193,7 +194,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti validate
   "Validates syntax"
-  (fn [string] (first (clojure.string/split string #" "))))
+  (fn [string] (clojure.string/upper-case (first (clojure.string/split string #" ")))))
 
 (defmethod validate "ASYNC"
   [string]
@@ -224,6 +225,10 @@
   [string]
   (let [argc (->> string (#(clojure.string/split % #" ")) count)]
     (and (> argc 2) (= (mod argc 2) 0))))
+
+(defmethod validate :default
+  [string]
+  false)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TCP
@@ -267,13 +272,6 @@
     (s/map (partial kv-parse main-db) s)
    s))
 
-(def server
-  (start-server
-    kv-parse-handler
-    6079))
-
-(def test-client @(client "localhost" 6079))
-
 (defn run-cmd
   [client cmd]
   (do @(s/put! client cmd)
@@ -309,4 +307,9 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (println "Hello, World!"))
+  (let [server (start-server kv-parse-handler 5432)]
+    (println "Server listening on localhost:5432")
+    (aleph.netty/wait-for-close server))
+  (println "Server shutting down"))
+
+; (def test-client @(client "localhost" 5432))
