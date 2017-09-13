@@ -3,7 +3,7 @@
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.8.0"] [aleph "0.4.3"] [gloss "0.2.5"]]
+  :dependencies [[org.clojure/clojure "1.8.0"] [aleph "0.4.3"] [gloss "0.2.5"] [clj-gatling "0.10.2"]]
   :main ^:skip-aot kvdb-client.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

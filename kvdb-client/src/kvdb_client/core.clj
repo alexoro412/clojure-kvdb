@@ -6,7 +6,46 @@
     [clojure.edn :as edn]
     [aleph.tcp :as tcp]
     [gloss.core :as gloss]
-    [gloss.io :as io]))
+    [gloss.io :as io]
+    [clj-gatling.core :as gatling]))
+
+(defmulti validate
+  "Validates syntax"
+  (fn [string] (clojure.string/upper-case (first (clojure.string/split string #" ")))))
+
+(defmethod validate "ASYNC"
+  [string]
+  (->> string (#(clojure.string/split % #" ")) rest (clojure.string/join " ") validate))
+
+(defmacro check-arity
+  [command argc]
+  (let [string (gensym)]
+    `(defmethod validate ~command
+      [~string]
+      (= (+ ~argc 1) (->> ~string (#(clojure.string/split % #" ")) count)))))
+
+(defmacro check-min-arity
+  [command argc]
+  (let [string (gensym)]
+    `(defmethod validate ~command
+      [~string]
+      (< ~argc (->> ~string (#(clojure.string/split % #" ")) count)))))
+
+(check-arity "GET" 1)
+(check-arity "SET" 2)
+(check-arity "HGET" 2)
+(check-min-arity "DEL" 1)
+(check-min-arity "HDEL" 2)
+(check-min-arity "EXISTS" 1)
+
+(defmethod validate "HSET"
+  [string]
+  (let [argc (->> string (#(clojure.string/split % #" ")) count)]
+    (and (> argc 2) (= (mod argc 2) 0))))
+
+(defmethod validate :default
+  [string]
+  false)
 
 (def protocol
   (gloss/compile-frame
@@ -36,21 +75,44 @@
   (do @(s/put! client cmd)
       @(s/take! client)))
 
+(def c @(client "localhost" 5432))
+
 (defmacro >>
   [& form]
-  (let [string (clojure.string/trim (reduce
-    #(clojure.string/join " " [%1 (str %2)]) "" form))]
-    `(run-cmd c ~string)))
+  (let [string (apply pr-str form)]
+  (if (validate string)
+    `(run-cmd c ~string)
+    (throw (Exception. (str string " is not valid kvdb syntax"))))))
 
-(def c @(client "localhost" 5432))
+(defn set-del-overload [_]
+  (let [k (gensym)
+        res1 (run-cmd c (str "SET" k 4))
+        res2 (run-cmd c (str "DEL" k))]
+        true))
+
+(defn set-get-test [_]
+  (let [k (gensym)
+        v (gensym)
+        res1 (run-cmd c (str "SET " k " " v))]
+        (let [res2 (run-cmd c (str "GET " k))]
+        #_(println (str v) (second res2))
+        (= (str v) (second res2)))))
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (print "WELCOME\n>>")
-  (loop [cmd (read-line)]
+  #_(print "WELCOME\n>>")
+  #_(loop [cmd (read-line)]
     (if (clojure.string/starts-with? (clojure.string/upper-case cmd) "QUIT")
       (println "Bye!")
       (do (print (run-cmd c cmd) "\n>> ")
         (flush) ;; to ensure printing happens before reading
-        (recur (read-line))))))
+        (recur (read-line)))))
+  (gatling/run
+    {:name "Load test"
+    :scenarios [{:name "Test 1"
+                 :steps [#_{:name "SET/DEL overload"
+                          :request set-del-overload}
+                          {:name "SET/GET test"
+                          :request set-get-test}]}]}
+    {:concurrency 100}))

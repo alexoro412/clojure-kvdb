@@ -13,10 +13,8 @@
 ;; TODO
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Catch errors in kv-parse
-;; Do values have to be returned with every command?
-;; Multimethod to validate syntax
-;; ;; Dispatch on first argument!
+;; Standardize return types
+;; Write load tester
 
 ;; LATER TODO
 ;; Add radix tree?
@@ -279,7 +277,10 @@
 
 (defmacro >>
   [& form]
-  `(run-cmd test-client ~(apply pr-str form)))
+  (let [string (apply pr-str form)]
+  (if (validate string)
+    `(run-cmd test-client ~(apply pr-str form))
+    (throw (Exception. (str string " is not valid kvdb syntax"))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TESTING
