@@ -31,9 +31,17 @@
   [db k]
   (contains? @db k))
 
+;;; From https://stackoverflow.com/questions/11670941/generate-character-sequence-from-a-to-z-in-clojure
+(defn char-range [start end]
+  (map char (range (int start) (inc (int end)))))
+
 (defn empty-db
   []
   (atom {}))
+; (atom (into {} (map #([% (atom {})]) (char-range \A \z))))
+(defn db-subset
+  [db character]
+  (get @db character))
 
 (defn kv-whole-map
   "Returns a hashmap snapshot of the entire database
