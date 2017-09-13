@@ -95,7 +95,6 @@
   @x
   nil)
 
-; Starts failing around 10% of the time after enough runs
 (defn set-get-test [ctx]
   (let [client @(client "localhost" 5432)]
     (every? #(= true %) (doall (repeat (:number ctx)
@@ -134,5 +133,5 @@
                           :request set-del-overload}
                           {:name "SET/GET test"
                           :request set-get-test}]}]}
-    {:concurrency 10
-      :requests 1000}))
+    {:concurrency 100
+      :requests 5000}))

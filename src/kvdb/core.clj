@@ -168,7 +168,7 @@
       "HDEL" (apply kv-hdel db operands)
       "HGET" (apply kv-hget db operands)
       "HSET" (apply kv-hset db operands)
-      "CLEAR" (do (swap! db (fn [_] {})) (list :ok :clear))
+      "CLEAR" (do (swap! db (fn [_] {})) (list :ok :clear)) ;; Debug purposes only
       (list :error :nocmd)))
 
 (defmacro repl
