@@ -90,13 +90,21 @@
         res2 (run-cmd c (str "DEL" k))]
         true))
 
-(defn set-get-test [_]
-  (let [k (gensym)
-        v (gensym)
-        res1 (run-cmd c (str "SET " k " " v))]
-        (let [res2 (run-cmd c (str "GET " k))]
+(defn throw-away [x]
+  @x
+  nil)
+
+; Starts failing around 10% of the time after enough runs
+(defn set-get-test [ctx]
+  (let [client (:client ctx)
+        k (str (java.util.UUID/randomUUID))
+        v (str (java.util.UUID/randomUUID))
+        res1 (run-cmd client (str "SET " k " " v))
+        res2 (run-cmd client (str "GET " k))]
         #_(println (str v) (second res2))
-        (= (str v) (second res2)))))
+        (if (= (str v) (second res2))
+          true
+          (do (println (str v) " : " (second res2)) false))))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -111,7 +119,7 @@
   (gatling/run
     {:name "Load test"
     :scenarios [{:name "Test 1"
-                 :steps [#_{:name "SET/DEL overload"
+                 :steps [{:name "SET/DEL overload"
                           :request set-del-overload}
                           {:name "SET/GET test"
                           :request set-get-test}]}]}
