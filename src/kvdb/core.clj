@@ -168,6 +168,7 @@
       "HDEL" (apply kv-hdel db operands)
       "HGET" (apply kv-hget db operands)
       "HSET" (apply kv-hset db operands)
+      "CLEAR" (do (swap! db (fn [_] {})) (list :ok :clear))
       (list :error :nocmd)))
 
 (defmacro repl
@@ -223,6 +224,7 @@
 (check-arity "GET" 1)
 (check-arity "SET" 2)
 (check-arity "HGET" 2)
+(check-arity "CLEAR" 0)
 (check-min-arity "DEL" 1)
 (check-min-arity "HDEL" 2)
 (check-min-arity "EXISTS" 1)

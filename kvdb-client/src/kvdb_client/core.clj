@@ -34,6 +34,7 @@
 (check-arity "GET" 1)
 (check-arity "SET" 2)
 (check-arity "HGET" 2)
+(check-arity "CLEAR" 0)
 (check-min-arity "DEL" 1)
 (check-min-arity "HDEL" 2)
 (check-min-arity "EXISTS" 1)
@@ -96,15 +97,23 @@
 
 ; Starts failing around 10% of the time after enough runs
 (defn set-get-test [ctx]
-  (let [client (:client ctx)
-        k (str (java.util.UUID/randomUUID))
-        v (str (java.util.UUID/randomUUID))
-        res1 (run-cmd client (str "SET " k " " v))
-        res2 (run-cmd client (str "GET " k))]
-        #_(println (str v) (second res2))
-        (if (= (str v) (second res2))
-          true
-          (do (println (str v) " : " (second res2)) false))))
+  (let [client @(client "localhost" 5432)]
+    (every? #(= true %) (doall (repeat (:number ctx)
+      (let [k (str (java.util.UUID/randomUUID))
+          v (str (java.util.UUID/randomUUID))
+          res1 (run-cmd client (str "SET " k " " v))
+          res2 (run-cmd client (str "GET " k))]
+          #_(println (str v) (second res2))
+          (= (str v) (second res2))))))))
+
+(defn set-del-test [ctx]
+  (let [client @(client "localhost" 5432)]
+    (every? #(= true %) (doall (repeat (:number ctx)
+      (let [k (str (java.util.UUID/randomUUID))
+          v (str (java.util.UUID/randomUUID))
+          res1 (run-cmd client (str "SET " k " " v))
+          res2 (run-cmd client (str "DEL " k))]
+          (= "1" (second res2))))))))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -118,9 +127,12 @@
         (recur (read-line)))))
   (gatling/run
     {:name "Load test"
+    :post-hook (fn [_] (run-cmd c "CLEAR"))
     :scenarios [{:name "Test 1"
+                  :context {:number 100}
                  :steps [{:name "SET/DEL overload"
                           :request set-del-overload}
                           {:name "SET/GET test"
                           :request set-get-test}]}]}
-    {:concurrency 100}))
+    {:concurrency 10
+      :requests 1000}))
