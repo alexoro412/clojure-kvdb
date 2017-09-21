@@ -50,10 +50,11 @@
 
 (def protocol
   (gloss/compile-frame
-    (gloss/finite-frame :uint32
-      (gloss/string :utf-8))
-    pr-str
-    edn/read-string))
+    ; (gloss/delimited-frame [|]
+    ;   (gloss/string :utf-8))
+    (gloss/string :utf-8 :delimiters ["\r\n"])
+    str
+    str))
 
 (defn wrap-duplex-stream
   [protocol s]
@@ -97,29 +98,45 @@
 
 (defn set-get-test [ctx]
   (let [client @(client "localhost" 4040)
-      test_result (every? #(= true %) (doall (repeat (:number ctx)
-        (let [k (str (java.util.UUID/randomUUID))
-            v (str (java.util.UUID/randomUUID))
-            res1 (run-cmd client (str "SET " k " " v))
-            res2 (run-cmd client (str "GET " k))]
-            #_(println (str v) (second res2))
-            (= (str v) (second res2))))))]
-    (.close client)
-    test_result))
+        test_result (every? #(= true %) (doall (repeat (:number ctx)
+          (let [k (str (java.util.UUID/randomUUID))
+              v (str (java.util.UUID/randomUUID))
+              res1 (run-cmd client (str "SET " k " " v))
+              res2 (run-cmd client (str "GET " k))]
+              (if (not= (str v) res2)
+                (do (println (str v) ",,," res2)
+                  (flush)
+                    false)
+                true)))))]
+      (.close client)
+      test_result))
 
 (defn set-del-test [ctx]
   (let [client @(client "localhost" 4040)
-  test_result (every? #(= true %) (doall (repeat (:number ctx)
-    (let [k (str (java.util.UUID/randomUUID))
-        v (str (java.util.UUID/randomUUID))
-        res1 (run-cmd client (str "SET " k " " v))
-        res2 (run-cmd client (str "DEL " k))]
-        (if (= 1 (second res2))
-          true
-          (do (println (second res2))
-              false))))))]
-    (.close client)
-    test_result))
+        test_result (every? #(= true %) (doall (repeat (:number ctx)
+          (let [k (str (java.util.UUID/randomUUID))
+              v (str (java.util.UUID/randomUUID))
+              res1 (run-cmd client (str "SET " k " " v))
+              res2 (run-cmd client (str "DEL " k))]
+              (= "1" res2)))))]
+        (.close client)
+        test_result))
+
+(defn echo-test [ctx]
+  (if-let [client @(client "localhost" 4040)]
+    (let [test_result (every? #(= true %) (doall (repeat (:number ctx)
+      (let [k (str (java.util.UUID/randomUUID))
+          res1 (run-cmd client (str k))]
+          (if (not= (str k) (str res1))
+            (do
+              (println "BAD BAD BAD BAD BAD")
+              (println (str k) ",,," (str res1))
+              (flush)
+                false)
+            true)))))]
+        (.close client)
+        test_result)
+    (println "NO connection :(")))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -140,6 +157,8 @@
                  :steps [{:name "SET/DEL overload"
                           :request set-del-test}
                           {:name "SET/GET test"
-                          :request set-get-test}]}]}
+                          :request set-get-test}
+                          #_{:name "ECHO test"
+                          :request echo-test}]}]}
     {:concurrency 100
       :requests 5000}))

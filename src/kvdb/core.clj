@@ -318,9 +318,9 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (let [server (start-server kv-parse-handler 5432)]
-    (println "Server listening on localhost:5432")
+  (let [server (start-server kv-parse-handler 4040)]
+    (println "Server listening on localhost:4040")
     (aleph.netty/wait-for-close server))
   (println "Server shutting down"))
 
-; (def test-client @(client "localhost" 5432))
+; (def test-client @(client "localhost" 4040))
