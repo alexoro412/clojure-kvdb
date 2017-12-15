@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+
+<html>
+
+ <head>
+  <title>AR Testbed</title>
+ </head>
+
+ <body>
+  <script src="https://aframe.io/releases/0.5.0/aframe.min.js"></script>
+  <script src="https://rawgit.com/jeromeetienne/ar.js/master/aframe/build/aframe-ar.js"></script>
+  <script>
+   THREEx.ArToolkitContext.baseURL = 'https://rawgit.com/jeromeetienne/ar.js/master/three.js/'
+
+  </script>
+
+  <a-scene embedded artoolkit='sourceType: webcam;'>
+   <a-box position='0 0.5 0' material='opacity: 0.5;'></a-box>
+   <a-marker-camera preset='hiro'></a-marker-camera>
+  </a-scene>
+ </body>
+
+</html>

@@ -52,7 +52,7 @@
   (gloss/compile-frame
     ; (gloss/delimited-frame [|]
     ;   (gloss/string :utf-8))
-    (gloss/string :utf-8 :delimiters ["\r\n"])
+    (gloss/string :utf-8 :delimiters ["\n"])
     str
     str))
 
@@ -159,4 +159,4 @@
                           {:name "SET/GET test"
                           :request set-get-test}]}]}
     {:concurrency 100
-      :requests 5000}))
+      :requests 10000}))

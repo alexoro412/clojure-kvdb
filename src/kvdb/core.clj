@@ -24,29 +24,29 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn bool->int
-  [bool]
+  [^Boolean bool]
   (if bool 1 0))
 
 (defn- kv-contains?
-  [db k]
+  [^clojure.lang.Atom db k]
   (contains? @db k))
 
 ;;; From https://stackoverflow.com/questions/11670941/generate-character-sequence-from-a-to-z-in-clojure
-(defn char-range [start end]
+(defn char-range [^Integer start ^Integer end]
   (map char (range (int start) (inc (int end)))))
 
 (defn empty-db
   []
   (atom {}))
 ; (atom (into {} (map #([% (atom {})]) (char-range \A \z))))
-(defn db-subset
-  [db character]
-  (get @db character))
+; (defn db-subset
+;   [^clojure.lang.Atom db character]
+;   (get @db character))
 
 (defn kv-whole-map
   "Returns a hashmap snapshot of the entire database
   {k [type value]}"
-  [db]
+  [^clojure.lang.Atom db]
   (into {}
     (map
     #((comp vec list)
@@ -56,11 +56,11 @@
     @db)))
 
 (defn kv-value
-  [db k]
+  [^clojure.lang.Atom db k]
   (second (get @db k)))
 
 (defn kv-type
-  [db k]
+  [^clojure.lang.Atom db k]
   (first (get @db k)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -71,7 +71,7 @@
   "Adds a key-value pairs to a hashmap
   Creates the map if it doesn't already exists.
   Returns (:ok) or (:error :type-mismatch)"
-  [db k & kvs]
+  [^clojure.lang.Atom db k & kvs]
   (if (contains? @db k)
     (let [[type value-atom] (get @db k)]
       (if (= type :hash)
@@ -84,7 +84,7 @@
 (defn kv-hget
   "Get value for hashmap k, field hk
   Returns (:ok value), (:error :type-mismatch), (:error :nil)"
-  [db k hk]
+  [^clojure.lang.Atom db k hk]
   (if (contains? @db k)
     (let [[type value-atom] (get @db k)]
       (if (= type :hash)
@@ -99,7 +99,7 @@
   returns (:ok num) where num is the number of keys deleted
   or (:error :type-mismatch).
   If the map doesn't exist, returns (:ok 0)"
-  [db k & hks]
+  [^clojure.lang.Atom db k & hks]
   (if (contains? @db k)
     (let [[type value-atom] (get @db k)]
       (if (= type :hash)
@@ -118,7 +118,7 @@
     (:new new-value)
     (:updated new-value)
     (:error :type-mismatch)"
-  [db k v]
+  [^clojure.lang.Atom db k v]
   (if (contains? @db k)
     (let [[type value-atom] (get @db k)]
       (if (= type :raw)
@@ -129,7 +129,7 @@
 
 (defn kv-dissoc
   "Returns (:ok num) where num is the number of keys deleted"
-  [db & ks]
+  [^clojure.lang.Atom db & ks]
   (list :ok (reduce
     #(+ %1 (if (kv-contains? db %2)
               (do (swap! db dissoc %2)
@@ -140,7 +140,7 @@
 
 (defn kv-get
   "Returns (:ok value), (:error :type-mismatch), or (:error :nil)"
-  [db k]
+  [^clojure.lang.Atom db k]
   (if (contains? @db k)
     (let [[type value-atom] (get @db k)]
       (if (= type :raw)
@@ -150,7 +150,7 @@
 
 (defn kv-exists
   "Returns (:ok num) where num is the number of keys that exist"
-  [db & ks]
+  [^clojure.lang.Atom db & ks]
   (list :ok (reduce #(+ %1 (bool->int (kv-contains? db %2)))
         0
         ks)))
@@ -158,7 +158,7 @@
 (defn kv-run
   "Runs commands given as list of strings.
   See kv-parse"
-  [db [function & operands]]
+  [^clojure.lang.Atom db [function & operands]]
   (case (clojure.string/upper-case function)
       "ASYNC" (do (future (kv-run db operands)) (list :ok :async))
       "SET" (apply kv-assoc db operands) ;; TODO turn into dispatch macro?
@@ -171,8 +171,8 @@
       "CLEAR" (do (swap! db (fn [_] {})) (list :ok :clear)) ;; Debug purposes only
       (list :error :nocmd)))
 
-(defmacro repl
-  [db & forms])
+; (defmacro repl
+;   [db & forms])
 
 (declare validate)
 
@@ -191,7 +191,7 @@
   - kv-hset
   - kv-hget
   - kv-hdel "
-  [db string]
+  [^clojure.lang.Atom db ^String string]
   (if (validate string)
     (kv-run db (clojure.string/split string #" "))
     (list :error :syntax)))
@@ -201,21 +201,21 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti validate
   "Validates syntax"
-  (fn [string] (clojure.string/upper-case (first (clojure.string/split string #" ")))))
+  (fn [^String string] (clojure.string/upper-case (first (clojure.string/split string #" ")))))
 
 (defmethod validate "ASYNC"
-  [string]
+  [^String string]
   (->> string (#(clojure.string/split % #" ")) rest (clojure.string/join " ") validate))
 
 (defmacro check-arity
-  [command argc]
+  [^String command ^Integer argc]
   (let [string (gensym)]
     `(defmethod validate ~command
       [~string]
       (= (+ ~argc 1) (->> ~string (#(clojure.string/split % #" ")) count)))))
 
 (defmacro check-min-arity
-  [command argc]
+  [^String command ^Integer argc]
   (let [string (gensym)]
     `(defmethod validate ~command
       [~string]
@@ -230,7 +230,7 @@
 (check-min-arity "EXISTS" 1)
 
 (defmethod validate "HSET"
-  [string]
+  [^String string]
   (let [argc (->> string (#(clojure.string/split % #" ")) count)]
     (and (> argc 2) (= (mod argc 2) 0))))
 
