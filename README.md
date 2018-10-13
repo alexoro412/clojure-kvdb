@@ -1,36 +1,32 @@
 # kvdb
 
-FIXME: description
+This is a simple Key-Value database in Clojure. 
 
-## Installation
+To run it, first run `lein run` in the top-level directory.
 
-Download from http://example.com/FIXME.
+Then, in a new terminal, open the kvdb-client folder and run `lein run`.
 
-## Usage
+The command syntax is based on Redis.
 
-FIXME: explanation
+Example commands 
 
-    $ java -jar kvdb-0.1.0-standalone.jar [args]
+```
+>> SET x 4
+(:new 4)
+>> GET x
+(:ok 4)
+>> DEL x
+(:ok 1)   # number of keys deleted
+>> HSET map key value
+(:ok)
+>> HGET map key 
+(:ok value)
+>> HDEL map key
+(:ok 1)   # number of keys deleted
+>> CLEAR
+(:ok :clear)
+>> EXISTS x
+(:ok 0)   # number of keys that exist
+```
 
-## Options
 
-FIXME: listing of options this app accepts.
-
-## Examples
-
-...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
-
-## License
-
-Copyright © 2017 FIXME
-
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
