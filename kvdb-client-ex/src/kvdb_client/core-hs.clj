@@ -141,15 +141,15 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  #_(print "WELCOME\n>>")
-  #_(flush)
-  #_(loop [cmd (read-line)]
+  (print "WELCOME\n>>")
+  (flush)
+  (loop [cmd (read-line)]
     (if (clojure.string/starts-with? (clojure.string/upper-case cmd) "QUIT")
       (println "Bye!")
       (do (print (run-cmd c cmd) "\n>> ")
         (flush) ;; to ensure printing happens before reading
         (recur (read-line)))))
-  (gatling/run
+  #_(gatling/run
     {:name "Load test"
     :post-hook (fn [_] (run-cmd c "CLEAR"))
     :scenarios [{:name "Test 1"
